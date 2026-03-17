@@ -51,7 +51,7 @@ class ModelTrainer:
             df['transformed_text'] = df['transformed_text'].astype(str)
 
             #  TF-IDF
-            tfidf = TfidfVectorizer(max_features=5000)
+            tfidf = TfidfVectorizer(max_features=2000)
             X = tfidf.fit_transform(df['transformed_text'])
             y = df['target'].values
 
@@ -69,14 +69,14 @@ class ModelTrainer:
         try:
             # ================= LOAD DATA =================
             logging.info("Loading transformed dataset")
-            df = pd.read_csv(self.model_training_config.transformed_df_path)
+            df = pd.read_csv(self.model_training_config.transformed_df_path).sample(40000)
 
             # ================= SPLIT =================
             X_train, X_test, y_train, y_test, tfidf = self.split_data(df)
 
             # ================= MODELS =================
             models = {
-                "SVC": SVC(),
+                # "SVC": SVC(),
                 "KNN": KNeighborsClassifier(),
                 "MultinomialNB": MultinomialNB(),
                 "DecisionTree": DecisionTreeClassifier(),
@@ -151,7 +151,7 @@ class ModelTrainer:
 
             save_object(
                 file_path=self.model_training_config.trained_model_file_path,
-                obj={"model": best_model, "vectorizer": tfidf}  # ✅ IMPORTANT
+                obj={"model": best_model, "vectorizer": tfidf}  
             )
 
             # ================= FINAL ACCURACY =================

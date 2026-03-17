@@ -63,7 +63,7 @@ def evaluate_models(X_train, y_train, X_test, y_test, models, param):
         logging.info(f"Starting training for {name}...")
 
         try:
-            grid = GridSearchCV(model, param[name], cv=5, scoring='f1', n_jobs=-1)
+            grid = GridSearchCV(model, param[name], cv=3, scoring='f1', n_jobs=-1)
             grid.fit(X_train, y_train)
 
             best_model = grid.best_estimator_
