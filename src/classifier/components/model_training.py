@@ -1,185 +1,164 @@
+import os
+import sys
+import pandas as pd
+import numpy as np
+
+from dataclasses import dataclass
+
 from src.classifier.exception import ClassifierException
 from src.classifier.logger import logging
-from src.classifier.utils import evaluate_models , save_object
-
-
-import pandas as pd 
-import numpy as np 
-import os
-from dataclasses import dataclass
+from src.classifier.utils import evaluate_models, save_object
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.ensemble import RandomForestClassifier , AdaBoostClassifier , BaggingClassifier, ExtraTreesClassifier , GradientBoostingClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_auc_score
-from xgboost import XGBClassifier
-from sklearn.feature_extraction.text import  TfidfVectorizer
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    AdaBoostClassifier,
+    BaggingClassifier,
+    ExtraTreesClassifier,
+    GradientBoostingClassifier
+)
+
+from sklearn.metrics import accuracy_score
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
 
+from xgboost import XGBClassifier
 
+
+# ================= CONFIG =================
 @dataclass
 class ModelTrainerConfig:
-    trained_model_file_path=os.path.join("artifacts","model.pkl")
+    trained_model_file_path = os.path.join("artifacts", "model.pkl")
     transformed_df_path = os.path.join("data", "processed", "transformed_df.csv")
-    
 
+
+# ================= TRAINER =================
 class ModelTrainer:
     def __init__(self):
         self.model_training_config = ModelTrainerConfig()
-        
-    
-    def eval_metrics(self, actual, pred, proba=None):
-        """
-        Evaluate classification metrics.
-        actual: true labels
-        pred: predicted labels
-        proba: predicted probabilities (optional, for ROC-AUC)
-        """
-        acc = accuracy_score(actual, pred)
-        precision = precision_score(actual, pred, average="weighted")
-        recall = recall_score(actual, pred, average="weighted")
-        f1 = f1_score(actual, pred, average="weighted")
-        cm = confusion_matrix(actual, pred)
-        
-        auc = None
-        if proba is not None:
-            try:
-                auc = roc_auc_score(actual, proba, multi_class="ovr")
-            except Exception as e:
-                auc = str(e)
-        
-        return {
-            "accuracy": acc,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
-            "confusion_matrix": cm,
-            "roc_auc": auc
-        }
-        
 
-    def split_data(self , df):
-        """
-        data_path
-        """
+    def split_data(self, df):
         try:
-            logging.info("Split training and test input data")
-            
-            tfidf = TfidfVectorizer()
-            X = tfidf.fit_transform(df['transformed_text']).toarray()
+            logging.info("Cleaning data + TF-IDF")
+
+            #  AGAIN DOING CLEANING DUE TO RE CHECK
+            df = df[['transformed_text', 'target']]
+            df = df.dropna(subset=['transformed_text'])
+            df['transformed_text'] = df['transformed_text'].astype(str)
+
+            #  TF-IDF
+            tfidf = TfidfVectorizer(max_features=5000)
+            X = tfidf.fit_transform(df['transformed_text'])
             y = df['target'].values
-            
-            # split the data 
-            X_train, X_test, y_train, y_test = train_test_split( X, y, test_size=0.33, random_state=42)
-            return (
-                X_train,
-                X_test,
-                y_train,
-                y_test
+
+            #  SPLIT
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.33, random_state=42
             )
-        except Exception as ey:
-            raise ClassifierException(ey , sys)
-        
-        
-        
+
+            return X_train, X_test, y_train, y_test, tfidf
+
+        except Exception as e:
+            raise ClassifierException(e, sys)
+
     def intiate_model_trainer(self):
         try:
-            # split the data  using function 
-            X_train, X_test, y_train, y_test = self.split_data(self.model_training_config.transformed_df_path)
-            
-            
+            # ================= LOAD DATA =================
+            logging.info("Loading transformed dataset")
+            df = pd.read_csv(self.model_training_config.transformed_df_path)
+
+            # ================= SPLIT =================
+            X_train, X_test, y_train, y_test, tfidf = self.split_data(df)
+
+            # ================= MODELS =================
             models = {
-                "SVC": SVC(kernel='sigmoid', gamma=1.0),
+                "SVC": SVC(),
                 "KNN": KNeighborsClassifier(),
                 "MultinomialNB": MultinomialNB(),
-                "DecisionTree": DecisionTreeClassifier(max_depth=5),
-                "LogisticRegression": LogisticRegression(solver='liblinear', penalty='l1'),
-                "RandomForest": RandomForestClassifier(n_estimators=50, random_state=2),
-                "AdaBoost": AdaBoostClassifier(n_estimators=50, random_state=2),
-                "Bagging": BaggingClassifier(n_estimators=50, random_state=2),
-                "ExtraTrees": ExtraTreesClassifier(n_estimators=50, random_state=2),
-                "GradientBoosting": GradientBoostingClassifier(n_estimators=50, random_state=2),
-                "XGBoost": XGBClassifier(n_estimators=50, random_state=2)
+                "DecisionTree": DecisionTreeClassifier(),
+                "LogisticRegression": LogisticRegression(max_iter=1000),
+                "RandomForest": RandomForestClassifier(),
+                "AdaBoost": AdaBoostClassifier(),
+                "Bagging": BaggingClassifier(),
+                "ExtraTrees": ExtraTreesClassifier(),
+                "GradientBoosting": GradientBoostingClassifier(),
+                "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss')
             }
 
-            # Params for HyperParameter Tuning 
+            # ================= HYPERPARAMETERS =================
             params = {
                 "SVC": {
-                    "kernel":["sigmoid", "linear", "rbf"],
-                    "gamma": [0.1, 1.0, 10]
-                    },
+                    "kernel": ["linear", "rbf"],
+                    "C": [0.1, 1, 10]
+                },
                 "KNN": {
-                    "n_neighbors": [3, 5, 7],
-                    "weights": ["uniform", "distance"]
-                    },
+                    "n_neighbors": [3, 5],
+                },
                 "MultinomialNB": {
-                    "alpha": [0.1, 0.5, 1.0]
-                    },
+                    "alpha": [0.5, 1.0]
+                },
                 "DecisionTree": {
-                    "max_depth": [3, 5, 10],
-                    "criterion": ["gini", "entropy"]
-                    },
+                    "max_depth": [5, 10]
+                },
                 "LogisticRegression": {
-                    "solver": ["liblinear"], 
-                    "penalty": ["l1", "l2"]
-                    },
+                    "C": [0.1, 1, 10]
+                },
                 "RandomForest": {
-                    "n_estimators": [50, 100],
-                    "max_depth": [None, 5, 10]
+                    "n_estimators": [50],
                 },
                 "AdaBoost": {
-                    "n_estimators": [50, 100],
-                 "learning_rate": [0.5, 1.0]
+                    "n_estimators": [50],
                 },
                 "Bagging": {
-                    "n_estimators": [50, 100]
-                ,   "max_samples": [0.5, 1.0]
+                    "n_estimators": [50],
                 },
                 "ExtraTrees": {
-                    "n_estimators": [50, 100],
-                    "max_depth": [None, 5, 10]
+                    "n_estimators": [50],
                 },
                 "GradientBoosting": {
-                    "n_estimators": [50, 100],
-                    "learning_rate": [0.05, 0.1, 0.2]
+                    "n_estimators": [50],
                 },
                 "XGBoost": {
-                    "n_estimators": [50, 100],
-                    "max_depth": [3, 5, 7]
+                    "n_estimators": [50],
+                    "max_depth": [3, 5]
                 }
             }
-            # Train the model 
-            model_report :dict = evaluate_models(X_train,y_train,X_test,y_test,models,params)
 
-            # check performance 
-            best_model_score = max(sorted(model_report.values()))
-            
-            best_model_name = list(model_report.keys())[
-                list(model_report.values()).index(best_model_score)
-            ]
-            best_model = models[best_model_name]
+            # ================= TRAIN =================
+            logging.info("Starting model evaluation")
 
-            print("This is the best model:")
-            print(best_model_name)
-            
-            if best_model_score<0.6:
-                raise ClassifierException("No best model found" , sys)
-            logging.info(f"Best found model on both training and testing dataset")
+            model_report, trained_models = evaluate_models(
+                X_train, y_train, X_test, y_test, models, params
+            )
+
+            # ================= BEST MODEL =================
+            best_model_name = max(model_report, key=model_report.get)
+            best_model_score = model_report[best_model_name]
+            best_model = trained_models[best_model_name]
+
+            print(f"Best Model: {best_model_name}")
+            print(f"Best F1 Score: {best_model_score}")
+
+            if best_model_score < 0.6:
+                raise ClassifierException("No good model found", sys)
+
+            # ================= SAVE =================
+            logging.info("Saving best model and TF-IDF vectorizer")
 
             save_object(
                 file_path=self.model_training_config.trained_model_file_path,
-                obj=best_model
+                obj={"model": best_model, "vectorizer": tfidf}  # ✅ IMPORTANT
             )
 
-            predicted=best_model.predict(X_test)
+            # ================= FINAL ACCURACY =================
+            y_pred = best_model.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
 
-            accuracy_ = accuracy_score(y_test, predicted)
-            return accuracy_
-            
-            # save the model 
-             
-        except Exception as ex:
-            raise ClassifierException(ex, sys)         
+            return accuracy
+
+        except Exception as e:
+            raise ClassifierException(e, sys)
