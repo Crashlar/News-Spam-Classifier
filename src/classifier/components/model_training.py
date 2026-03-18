@@ -69,7 +69,7 @@ class ModelTrainer:
         try:
             # ================= LOAD DATA =================
             logging.info("Loading transformed dataset")
-            df = pd.read_csv(self.model_training_config.transformed_df_path).sample(40000)
+            df = pd.read_csv(self.model_training_config.transformed_df_path)
 
             # ================= SPLIT =================
             X_train, X_test, y_train, y_test, tfidf = self.split_data(df)

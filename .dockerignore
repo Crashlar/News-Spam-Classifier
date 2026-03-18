@@ -1,0 +1,45 @@
+# 1. Python artifacts (Massive amounts of small files)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ipynb_checkpoints/
+notebooks/
+logs/
+data/raw
+
+
+# 2. Virtual Environments (NEVER copy these - they are OS-specific)
+venv/
+.venv/
+env/
+.conda
+.dvc
+.git
+.vscode
+
+
+# 3. Large Data / Pickles (If you want to keep your image light)
+# Only exclude these if you are downloading/generating them inside the container
+# *.csv
+# artifacts/
+#    <-- Don't ignore this if your model needs the .pkl files to run!
+
+# 4. Environment Secrets (Security Risk!)
+.env
+
+# 5. Git history (Hundreds of MBs usually)
+.git/
+.gitignore
+
+# 6. Docker itself
+Dockerfile
+.dockerignore
+
+# 7. OS Metadata
+.DS_Store
+Thumbs.db
+
+passphrase.txt
+*.md
+.cache

@@ -1,45 +1,61 @@
-import os 
-import sys 
+import os
+import sys
+import pickle
+
 from src.classifier.exception import ClassifierException
 from src.classifier.logger import logging
 from dataclasses import dataclass
-import pickle
 
+#  IMPORT SAME PREPROCESSING (VERY IMPORTANT)
+from src.classifier.components.data_transformation import DataTransformation
+
+
+# ================= CONFIG =================
 @dataclass
 class PredictionPipelineConfig:
     trained_model_file_path = os.path.join("artifacts", "model.pkl")
-    transformed_df_path = os.path.join("data", "processed", "transformed_df.csv")
+
+
+# ================= PIPELINE =================
 class PredictionPipeline:
     def __init__(self):
         try:
             self.model_path = PredictionPipelineConfig.trained_model_file_path
 
-            # load model and vectorization 
-            with open(self.model_path , "rb") as f:
+            # 🔥 Load model + vectorizer
+            with open(self.model_path, "rb") as f:
                 data = pickle.load(f)
-            
-            self.model = data['model']
-            self.vectorizer = data['vectorizer']
 
-            logging.info("model and vectorizer loaded successfully")
+            self.model = data["model"]
+            self.vectorizer = data["vectorizer"]
+
+            # 🔥 SAME preprocessing as training
+            self.preprocessor = DataTransformation()
+
+            logging.info("Model and vectorizer loaded successfully")
 
         except Exception as e:
-            raise ClassifierException(e , sys)
-        
-    def predict(self , text):
+            raise ClassifierException(e, sys)
+
+    def predict(self, text):
         try:
-            # basic preprocesssing as same as training 
-            if isinstance(text , str):
+            # Ensure input is list
+            if isinstance(text, str):
                 text = [text]
-            text = [t.strip().lower() for t in text]
 
-            # transform using saved TF-IDF
-            X = self.vectorizer.transform(text)
+            # 🔥 APPLY SAME CLEANING
+            cleaned_text = [self.preprocessor.clean_text(t) for t in text]
 
-            # preiction
+            # Transform using TF-IDF
+            X = self.vectorizer.transform(cleaned_text)
+
+            # Prediction
             preds = self.model.predict(X)
 
-            return preds
+            # 🔥 Convert to readable output
+            results = ["Fake News" if p == 0 else "Real News" for p in preds]
+
+            return results[0] if len(results) == 1 else results
+
         except Exception as e:
-            raise ClassifierException(e , sys)
-        
+            raise ClassifierException(e, sys)
