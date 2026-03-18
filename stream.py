@@ -69,8 +69,10 @@ if st.button("🔍 Analyze News"):
 
             # OPTIONAL: confidence score (if model supports)
             try:
+                cleaned = predictor.preprocessor.clean_text(user_input)
+
                 proba = predictor.model.predict_proba(
-                    predictor.vectorizer.transform([user_input])
+                    predictor.vectorizer.transform([cleaned])
                 )[0]
 
                 confidence = round(max(proba) * 100, 2)
